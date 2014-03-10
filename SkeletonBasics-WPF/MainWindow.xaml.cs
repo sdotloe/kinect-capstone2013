@@ -16,6 +16,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
     using System.Diagnostics;
     using System.Windows.Threading;
     using System.ComponentModel;
+    using System.Collections;
 
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -24,12 +25,6 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
     {
 
         //----- My Variables
-        private double hipMin = 2;
-        private double hipMax = -2;
-        
-        private double kneeMin = 2;
-        private double kneeMax = -2;
-
         private Joint hipR; 
         private Joint kneeR;
         private Joint head;
@@ -38,13 +33,15 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         private Joint shoulderR;
         private Joint handR;
         private Joint handL;
-        private Duration duration;
+        private Duration duration1;
 
         DispatcherTimer dt = new DispatcherTimer();
         Stopwatch stopWatch = new Stopwatch();
         string currentTime = string.Empty;
 
-
+        //Number of Sets completed
+        //private int setCount = 0;
+        ArrayList squatList = new ArrayList();
 
         //Number of Squats completed
         private int repCount = 0;
@@ -128,31 +125,36 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         public MainWindow()
         {
             InitializeComponent();
-            ///////////////////////////////////////////////////////
+           
+            //Initialize timer
             dt.Tick += new EventHandler(dt_Tick);
             dt.Interval = new TimeSpan(0, 0, 0, 0, 1);
-            ////////////////////////////////////////////////////////
         }
 
+        
+        /// <summary>
+        /// Outputs Timer to GUI
+        /// </summary>
+        /// <param name="sender">object sending the event</param>
+        /// <param name="e">event arguments</param>
         void dt_Tick(object sender, EventArgs e)
         {
             if (stopWatch.IsRunning)
             {
                 TimeSpan ts = stopWatch.Elapsed;
-                currentTime = String.Format("{0:00}:{1:00}:{2:00}",
-                    ts.Hours, ts.Minutes, ts.Seconds);
+                currentTime = String.Format("{0:00}:{1:00}:{2:00}", ts.Hours, ts.Minutes, ts.Seconds);
                 ClockTextBlock.Text = "Duration: " + currentTime;
-
             }
         }
 
-        private void StartButton_Click()//object sender, RoutedEventArgs e
+        
+        /// <summary>
+        /// Start StopWatch
+        /// </summary>
+        private void StartTimer()
         {
-           // if (startTimer == true)
-          //  {
-                stopWatch.Start();
-                dt.Start();
-           // }
+            stopWatch.Start();
+            dt.Start();
         }
 
         /// <summary>
@@ -245,7 +247,7 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
             if (null == this.sensor)
             {
- //               this.statusBarText.Text = Properties.Resources.NoKinectReady;///////////////////////////////////////
+                ClockTextBlock.Text = "No Kinect Detected.";
             }
         }
 
@@ -258,11 +260,12 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
         {
             if (null != this.sensor)
             {
+                stopWatch.Stop();
                 this.sensor.Stop();
             }
         }
 
-
+        //Hopefully this method will be used to dynamically identify exercises in the future
         private void ExerciseID(Skeleton skeleton)
         {
             if (skeleton.Joints[JointType.ShoulderRight].Position.Y - skeleton.Joints[JointType.WristRight].Position.Y < 0) // and if standing -> each joint is above the rest
@@ -272,85 +275,61 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
             }
         }
 
-        //Squat Tracker
+        
+        /// <summary>
+        /// Squat Tracker
+        /// </summary>
+        /// <param name="skeleton">skeleton representation of user</param>
         private void StartStopExercise(Skeleton skeleton)
         {
-            //Raise Right Hand above Head to Begin exercise
-            if (Exercising == false && (skeleton.Joints[JointType.HandRight].Position.Y - skeleton.Joints[JointType.Head].Position.Y > 0.1))
+            //Raise Right Hand 4 inches above Head to Begin exercise
+            if (Exercising == false && (skeleton.Joints[JointType.HandRight].Position.Y - skeleton.Joints[JointType.Head].Position.Y > 0.1)) //(0.1m = 3.9in)
             {
-               // System.Console.WriteLine("Start Exercise ");
-              //  hipR = skeleton.Joints[JointType.HipRight]; //maybe change to HipRight
-                StartButton_Click();
-                head = skeleton.Joints[JointType.Head];
-                kneeR = skeleton.Joints[JointType.KneeRight];
+                StartTimer();
+                head = skeleton.Joints[JointType.Head]; //Records Head position at the beginning of exercise
+                kneeR = skeleton.Joints[JointType.KneeRight]; //Records Right knee position at beginning of exercise
+                SetLabel.Text = "Set: " + (squatList.Count + 1);
+                RepLabel.Text = "Rep: 0";
+                ExerciseLabel.Text = "Exercise: Squats";
                 Exercising = true;
-                System.Console.WriteLine("Begin Squats");
+               // System.Console.WriteLine("Begin Squats"); //Workout: Squats box -> then a Begin indicator
             }
 
-            //Raise Left Hand above Head to End exercise
-            if (Exercising == true && (skeleton.Joints[JointType.HandLeft].Position.Y - skeleton.Joints[JointType.Head].Position.Y > 0.1 ))
+
+            //Raise Left Hand 4 inches above Head to End exercise
+            if (Exercising == true && (skeleton.Joints[JointType.HandLeft].Position.Y - skeleton.Joints[JointType.Head].Position.Y > 0.1)) //(0.1m = 3.9in)
             {
                 Exercising = false;
-                System.Console.WriteLine("Final Rep Count = " + repCount);
+                squatList.Add(repCount);
                 repCount = 0;
-               // System.Console.WriteLine("Hip Max = " + hipMax + " Hip Min = " + hipMin);
-                //System.Console.WriteLine("Knee Max = " + kneeMax + " Knee Min = " + kneeMin);
-                //System.Console.WriteLine("Hip Depth = " + skeleton.Joints[JointType.HipCenter].Position.Z);
-                this.Close();
-                return;
             }
 
+            //Raise Both Hands 4 inches above Head to Close Program
+            if ((skeleton.Joints[JointType.HandLeft].Position.Y - skeleton.Joints[JointType.Head].Position.Y > 0.1) &&
+                (skeleton.Joints[JointType.HandRight].Position.Y - skeleton.Joints[JointType.Head].Position.Y > 0.1)) //(0.1m = 3.9in)
+            {
+                this.Close();
+            }
 
                 if (Exercising)
                 {
-                    
-                    hipR = skeleton.Joints[JointType.HipRight]; 
-                //    Joint kneeR = skeleton.Joints[JointType.KneeRight];
-
-                 /*
-                    //------------------------Delete----------------
-                    if (hipR.Position.Y > hipMax)
-                    {
-                        hipMax = hipR.Position.Y;
-                    }
-
-                    if (hipR.Position.Y < hipMin)
-                    {
-                        hipMin = hipR.Position.Y;
-                    }
-
-                    if (kneeR.Position.Y > kneeMax)
-                    {
-                        kneeMax = kneeR.Position.Y;
-                    }
-
-                    if (kneeR.Position.Y < kneeMin)
-                    {
-                        kneeMin = kneeR.Position.Y;
-                    }
-                    //-------------------------------Delete----------------------------
-                    */
+                    hipR = skeleton.Joints[JointType.HipRight]; //Continously track Right Hip
 
                     //Mid Position Reached
                     if (hipR.Position.Y - kneeR.Position.Y < 0.03) //Hip is lower than the knee (0.03m = 1.8in)
-                    {
-                      // System.Console.WriteLine("Hip - Knee = " + (hipR.Position.Y - kneeR.Position.Y));
+                    {    
                        reachedMid = true;
                        trackedBonePen = new Pen(Brushes.LemonChiffon, 6); //LemonChiffon skeleton indicates Mid position reached 
                     }
 
-                    //Temporary Start Position condition
-                    //if (reachedMid && (hipR.Position.Y > kneeR.Position.Y) )
+                    //Temporary Start Position Reached
                     if (reachedMid && (head.Position.Y - skeleton.Joints[JointType.Head].Position.Y < 0.1 )) //(0.1m = 3.9in)
                     {
-
                         trackedBonePen = new Pen(Brushes.Green, 6); //Green skeleton indicates that Start position
                         reachedMid = false;
-                        repCount++;
-                        statusBarText.Text = "Rep: " + repCount;
-                        System.Console.WriteLine("Rep Count = " + repCount);
+                        repCount++;  
+                        RepLabel.Text = "Rep: " + repCount;
                     }
-
                 }
             }
         
@@ -388,15 +367,14 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
                         if (skel.TrackingState == SkeletonTrackingState.Tracked)
                         {
                             this.DrawBonesAndJoints(skel, dc);
-                           
-                            //ID Squats
-                            ExerciseID(skel);
+
+                            //ID Squats here: ExerciseID(skel);
+
                             //Track Squats
                             StartStopExercise(skel);
                         }
                         else if (skel.TrackingState == SkeletonTrackingState.PositionOnly)
                         {
-                            //System.Console.WriteLine("This is when PositionOnly Occurs");  // FOR DEBUGGING (Delete this line)
                             dc.DrawEllipse(
                             this.centerPointBrush,
                             null,
@@ -518,78 +496,19 @@ namespace Microsoft.Samples.Kinect.SkeletonBasics
 
             drawingContext.DrawLine(drawPen, this.SkeletonPointToScreen(joint0.Position), this.SkeletonPointToScreen(joint1.Position));
         }
-        /*
-        private void duration(object sender, RoutedEventArgs e)
-        {
-          // Timer timer = new Timer();
-           // timer.Start();
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
-            var label = sender as Label;
-            label.Content = "Duration: " + stopwatch.Elapsed;
-        }
-        */
+
     
  
-        /*
-            public event PropertyChangedEventHandler PropertyChanged;
-            public string TimeElapsed { get; set; }
-
-            private DispatcherTimer timer;
-            private Stopwatch stopWatch;
-
-            public void StartTimer()
-            {
-                timer = new DispatcherTimer();
-                timer.Tick += dispatcherTimerTick_;
-                timer.Interval = new TimeSpan(0, 0, 0, 0, 1);
-                stopWatch = new Stopwatch();
-                stopWatch.Start();
-                timer.Start();
-                
-            }
-
-
-
-            private void dispatcherTimerTick_(object sender, EventArgs e)
-            {
-                TimeElapsed = "" + stopWatch.Elapsed.TotalMilliseconds; // Format as you wish
-                var label = sender as Label;
-                label.Content =""+ TimeElapsed;
-                PropertyChanged(this, new PropertyChangedEventArgs("TimeElapsed"));
-            }
-        
-        */
-        //date sent to UI
+        /// <summary>
+        /// Gets Date for GUI
+        /// </summary>
+        /// <param name="sender">object sending the event</param>
+        /// <param name="e">event arguments</param>
         private void currentDate(object sender, RoutedEventArgs e)
         {
             var label = sender as Label;
             label.Content = "Date: " + DateTime.Now.ToShortDateString();
-           // DateTime now = DateTime.Now;
-       //     string date = now.GetDateTimeFormats('d')[0];
-        //    return date;
         }
 
-
-/*
-        /// <summary>
-        /// Handles the checking or unchecking of the seated mode combo box
-        /// </summary>
-        /// <param name="sender">object sending the event</param>
-        /// <param name="e">event arguments</param>
-        private void CheckBoxSeatedModeChanged(object sender, RoutedEventArgs e)
-        {
-            if (null != this.sensor)
-            {
-                if (this.checkBoxSeatedMode.IsChecked.GetValueOrDefault())
-                {
-                    this.sensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Seated;
-                }
-                else
-                {
-                    this.sensor.SkeletonStream.TrackingMode = SkeletonTrackingMode.Default;
-                }
-            }
-        }*/
     }
 }
